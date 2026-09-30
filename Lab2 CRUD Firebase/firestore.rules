@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/employees/{employeeId} {
+      function ownsCatalog() { return request.auth != null && request.auth.uid == userId; }
+      function validText(value, max) {
+        return value is string && value.size() > 0 && value.size() <= max && value.matches('.*[^ ].*');
+      }
+      function validEmployee() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['name', 'email', 'position', 'department', 'status', 'createdAt', 'updatedAt'])
+          && data.keys().hasOnly(['name', 'email', 'position', 'department', 'status', 'createdAt', 'updatedAt'])
+          && validText(data.name, 100)
+          && validText(data.position, 80)
+          && data.email is string && data.email.size() <= 254
+          && data.email.matches('[^ @]+@[^ @]+[.][^ @]+')
+          && data.department in ['Tecnología', 'Operaciones', 'Administración', 'Ventas', 'Recursos humanos']
+          && data.status in ['active', 'inactive']
+          && data.createdAt is timestamp && data.updatedAt == request.time;
+      }
+      allow read, delete: if ownsCatalog();
+      allow create: if ownsCatalog() && validEmployee() && request.resource.data.createdAt == request.time;
+      allow update: if ownsCatalog() && validEmployee() && request.resource.data.createdAt == resource.data.createdAt;
+    }
+  }
+}
